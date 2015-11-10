@@ -1,0 +1,5 @@
+---
+- name: Install Boost Libraries
+  apt: >
+    name=libboost-all-dev
+    state=installed
