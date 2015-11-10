@@ -1,0 +1,68 @@
+---
+- name: Ensure Apache is installed.
+  apt: >
+    name={{ item }}
+    state=installed
+  with_items: apache_packages
+
+- name: Configure Apache.
+  lineinfile: >
+    dest="{{ apache_server_root }}/ports.conf"
+    regexp="{{ item.regexp }}"
+    line="{{ item.line }}"
+    state=present
+  with_items:
+  - {
+    regexp: "^Listen ",
+    line: "Listen {{ apache_listen_port }}"
+  }
+  notify: restart apache
+
+- name: Enable Apache mods (Debian).
+  file: >
+    src={{ apache_server_root }}/mods-available/{{ item }}
+    dest={{ apache_server_root }}/mods-enabled/{{ item }}
+    state=link
+  with_items: apache_mods_enabled
+  notify: restart apache
+
+- name: Add apache vhosts configuration.
+  template: >
+    src=vhosts.conf.j2
+    dest={{ apache_conf_path }}/vhosts.conf
+    owner=root group=root mode=644
+  notify: restart apache
+  when: apache_create_vhosts
+
+- name: Disable default apache site
+  command: a2dissite 000-default.conf
+  notify: restart apache
+  when: apache_create_vhosts
+
+- name: Ensure Apache is started and enabled on boot.
+  service: >
+    name={{ apache_daemon }}
+    state=started
+    enabled=yes
+
+- name: Ensure Varnish is installed.
+  apt: >
+    name=varnish
+    state=installed
+  when: with_varnish
+
+- name: Replace Default Varnish Configuration
+  template: >
+    src=varnish.j2
+    dest={{ varnish_config_file }}
+    owner=root group=root mode=644
+  notify: restart varnish
+  when: with_varnish
+
+- name: Create Default VCL
+  template: >
+    src=varnish.vcl.j2
+    dest={{ varnish_default_vcl }}
+    owner=root group=root mode=644
+  notify: restart varnish
+  when: with_varnish
